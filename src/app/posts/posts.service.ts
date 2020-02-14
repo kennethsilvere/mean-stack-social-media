@@ -1,38 +1,59 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import { Post } from './post.model';
 
-@Injectable({ providedIn: 'root'})
+@Injectable({ providedIn: "root" })
 export class PostsService {
-    private posts: Post[] = [];
-    private postsUpdated = new Subject<Post[]>();
+  private posts: Post[] = [];
+  private postsUpdated = new Subject<Post[]>();
 
-    constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {}
 
-    getPosts(){
-        this.http.get<{message: string, posts: Post[]}>('http://localhost:3000/api/posts').subscribe(
-            (response) => {
-                console.log(response.message);
-                this.posts = response.posts;
-                this.postsUpdated.next([...this.posts]);
-            }
-        );
-    }
+  getPosts() {
+    this.http
+      .get<{ message: string; posts: Post[] }>(
+        "http://localhost:3000/api/posts"
+      )
+      .pipe(
+        map((postData: { message: string; posts: any[] }) => {
+          return postData.posts.map(post => {
+            return {
+              id: post._id,
+              ...post
+            };
+          });
+        })
+      )
+      .subscribe(posts => {
+        this.posts = posts;
+        this.postsUpdated.next([...this.posts]);
+      });
+  }
 
-    addPost(title: string, content: string) {
-        const post: Post = { title, content };
-        this.http.post<{message: string}>('http://localhost:3000/api/posts', post).subscribe(
-            (response) => {
-                console.log(response.message);
-                this.posts.push(post); 
-                this.postsUpdated.next([...this.posts]);
-            }
-        );
-    }
+  addPost(title: string, content: string) {
+    const post: Post = { title, content };
+    this.http
+      .post<{ message: string, postId: string }>("http://localhost:3000/api/posts", post)
+      .subscribe(response => {
+        post.id = response.postId;
+        this.posts.push(post);
+        this.postsUpdated.next([...this.posts]);
+      });
+  }
 
-    getUpdatedPosts() {
-        return this.postsUpdated.asObservable();
-    }
+  deletePost(postId: string) {
+    this.http
+      .delete(`http://localhost:3000/api/posts/${postId}`)
+      .subscribe((data: any) => {
+        this.posts = this.posts.filter((post: Post) => post.id !== postId);
+        this.postsUpdated.next([...this.posts]);
+      });
+  }
+
+  getUpdatedPosts() {
+    return this.postsUpdated.asObservable();
+  }
 }
